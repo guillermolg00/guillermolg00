@@ -1,0 +1,123 @@
+---
+title: "translate-kit: from zero to a fully translated Next app in 1 min"
+publishedAt: "2026-02-27"
+summary: "How I built an AI-powered CLI that handles the entire i18n pipeline at build time — scanning, transforming, and translating your codebase automatically."
+---
+
+If you've ever internationalized a Next.js app, you know the drill. You write your component:
+
+```tsx
+<h1>Welcome back</h1>
+<p>Start building something great today.</p>
+```
+
+Then you stop coding to do busywork: invent a key name, add it to a JSON file, replace the string with `t("hero.welcomeBack")`, repeat 200 times, then manually translate every JSON file into 5 languages. By the time you're done, you've forgotten what feature you were building.
+
+I got tired of this loop, so I built [translate-kit](https://translate-kit.com) — a CLI that handles the entire translation pipeline at build time using AI.
+
+## What it does
+
+translate-kit runs three steps, in order:
+
+```
+scan → codegen → translate
+```
+
+**Scan** parses your JSX/TSX with Babel and extracts every translatable string — text nodes, attributes like `placeholder` and `aria-label`, template literals, ternaries. It uses AI to generate semantic key names (`hero.welcomeBack` instead of `string_47`) and groups them by namespace automatically.
+
+**Codegen** takes those keys and rewrites your source files. Two modes:
+
+- **Keys mode** (default): replaces raw strings with `t("key")` calls and injects the `useTranslations` hook
+- **Inline mode**: wraps text with `<T id="key">text</T>` components, keeping the source text visible in code
+
+Both modes detect whether a file is a server or client component and validate the output by re-parsing the AST before writing.
+
+**Translate** loads your source messages, diffs them against a lock file (SHA-256 hashes per key), and only sends new or modified keys to the AI. It merges cached translations, validates that placeholders like `{name}` survived the translation, and writes the target locale files.
+
+One command does it all:
+
+```bash
+npx translate-kit run
+```
+
+Or you can run each step independently. `translate` alone is the most common — you write your source messages by hand and let the tool handle the rest.
+
+## Why I built it
+
+The short answer: I was building a SaaS with Next.js and next-intl, and the manual i18n workflow was eating hours every week.
+
+The longer answer has three parts:
+
+**JSON files are tedious.** Every time I changed copy in a component, I had to update the source JSON, then update (or re-translate) every target locale file. Multiply that by dozens of components and it becomes a real bottleneck.
+
+**Existing tools didn't fit.** Some solutions are runtime-heavy — they ship SDKs, add loading spinners, create flashes of untranslated content. Others are SaaS platforms with dashboards that require context-switching. I wanted something that runs in my terminal, at build time, and produces static JSON files that next-intl already knows how to read.
+
+**AI models got good enough.** Models like GPT-4o-mini can translate UI strings with the right context and constraints for fractions of a cent. The quality is genuinely good when you give the model your app's context, a glossary, and the tone you want.
+
+## Why it's designed the way it is
+
+A few decisions shaped the architecture:
+
+### Build-time, not runtime
+
+translate-kit is a `devDependency`. It doesn't ship any code to your users. The output is standard JSON files and standard next-intl code. If you uninstall translate-kit tomorrow, your app keeps working exactly the same. Zero lock-in.
+
+This was non-negotiable. I didn't want to add another runtime dependency, another bundle size concern, another thing that can break in production.
+
+### Babel AST, not regex
+
+The codegen step doesn't search-and-replace strings. It parses each file into a Babel AST, transforms the nodes, and generates the output. This means it handles edge cases like:
+
+- Strings inside ternary expressions (`{isNew ? "Welcome" : "Welcome back"}`)
+- Template literals with interpolations (`` {`Hello ${name}`} ``)
+- Strings in attributes (`placeholder="Search..."`)
+- Nested JSX with mixed text and expressions
+
+Before writing the transformed file, it re-parses the generated code to verify it's valid syntax. If the re-parse fails, the file is skipped instead of corrupted.
+
+### Incremental by default
+
+The `.translate-lock.json` file stores a SHA-256 hash for every source value. When you re-run translate, it computes the diff: which keys are new, which changed, which were removed. Only new and modified keys get sent to the AI. This keeps costs predictable — a small copy change doesn't re-translate your entire app.
+
+### Any AI provider
+
+translate-kit uses [Vercel AI SDK](https://sdk.vercel.ai/) as its AI layer. You pick the model in your config:
+
+```ts
+import { openai } from "@ai-sdk/openai";
+
+export default defineConfig({
+  model: openai("gpt-4o-mini"),
+  // ...
+});
+```
+
+Want to use Claude? Google? Mistral? Groq? Just swap the import. You control the cost and the quality. There's even a `fallbackModel` option — if your primary model fails (rate limits, outages), translate-kit retries with the fallback automatically.
+
+### Context matters
+
+Translations are only as good as the context you give the model. translate-kit lets you configure:
+
+- **App context**: "SaaS application for project management" — this changes how the model translates ambiguous terms
+- **Glossary**: `{ "Acme": "Acme", "workspace": "workspace" }` — terms that should never be translated
+- **Tone**: "professional", "casual", "friendly" — consistent voice across all locales
+
+The scanner also enriches strings with route path and section context before sending them to the AI, so a "Save" button in a settings page gets translated differently than a "Save" button in a document editor (in languages where that distinction matters).
+
+## What I learned building it
+
+**AST transforms are fragile at the edges.** The happy path is straightforward — find a text node, wrap it. But real codebases have strings in `const` declarations, in array maps, in default props, in places where injecting a `t()` call requires restructuring the surrounding code. I chose to handle the vast majority of cases well and let users handle the rest manually.
+
+**AI structured output is a game changer.** All AI calls use `generateObject` with Zod schemas. The model doesn't return free-form text that I have to parse — it returns typed objects that match the exact shape I need. This eliminates an entire class of parsing bugs.
+
+**Incremental everything.** The lock file was one of the first things I built, and it's probably the most important feature. Without it, every run would re-translate everything, costs would be unpredictable, and you'd lose any manual corrections you made to the AI output.
+
+## Try it
+
+```bash
+npx translate-kit init
+```
+
+The wizard scaffolds your config, sets up locales, and optionally runs the full pipeline on your codebase. The whole thing is [open source on GitHub](https://github.com/nicholasgriffintn/translate-kit).
+
+If you're maintaining a Next.js app with next-intl and spending time on JSON files, give it a shot. I built it for myself, but I think it solves a problem a lot of people have.

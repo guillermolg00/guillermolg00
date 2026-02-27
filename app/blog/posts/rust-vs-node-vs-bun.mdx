@@ -134,9 +134,9 @@ This isn't an argument against Rust. It's an argument against making infrastruct
 
 If your team already writes Rust, use it. If your pipeline needs microsecond latency, use it. If you process millions of events per second and every infrastructure dollar counts, use it.
 
-But if your team is 3 people who write TypeScript, your load is 10k msg/s, and the service runs on a $10/month pod — the pragmatic decision isn't the one that sells on Twitter.
+But if your team writes TypeScript, your load fits in a single pod, and the monthly cost is negligible — the pragmatic decision isn't the one that sells on Twitter.
 
-I implemented it in Rust. I can say it works. I can also say that maintenance will be done by Vallin or Alain from the backend team, and they write JavaScript. A service that nobody can maintain isn't a good service, regardless of how many milliseconds of latency it saves.
+I implemented it in Rust. I can say it works. I can also say that the people who will maintain it day-to-day write JavaScript. A service that nobody can maintain isn't a good service, regardless of how many milliseconds of latency it saves.
 
 **"We have it in Rust" sells. But a service your team can debug at 3 AM when something fails in production is worth more than p99 of 1.7ms.**
 
