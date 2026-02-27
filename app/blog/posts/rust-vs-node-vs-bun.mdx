@@ -1,0 +1,215 @@
+---
+title: "We almost rewrote everything in Rust. Then we ran the numbers."
+publishedAt: "2026-02-27"
+summary: "We were about to rewrite a critical microservice in Rust. We stopped, measured three runtimes under identical load, and what we found changed our decision completely."
+---
+
+We were about to rewrite a critical microservice in Rust. The service receives driver GPS positions via MQTT and writes them to ClickHouse — a simple pipeline that has to handle real production load. Before committing weeks of work, we decided to stop and measure. What we found completely changed our decision.
+
+## The service
+
+The pipeline is deliberately simple:
+
+```
+Driver GPS → MQTT (EMQX) → Microservice → Buffer → Batch Insert → ClickHouse
+```
+
+Each driver publishes their position (lat, lng, speed, heading) via MQTT. The microservice accumulates in a buffer and flushes to ClickHouse every 5,000 rows or every second, whichever comes first. No complex transformations, no joins, no business logic — receive, accumulate, write.
+
+We implemented the same service in three runtimes: Rust (tokio + rumqttc), Node.js (mqtt.js + @clickhouse/client), and Bun (same Node code with Bun.serve for metrics).
+
+## Stop. Think. Then decide.
+
+The decision to rewrite in Rust seemed obvious. Rust is faster, uses less memory, has predictable latency. Who wouldn't want that? The team was motivated, we already had a working prototype, and "high-frequency microservice in Rust" sounds exactly like something a serious engineering team would do.
+
+But there was a question we hadn't asked: **do we actually need what Rust offers?**
+
+It's tempting to jump straight to implementation when you think you already know the answer. In our industry there's a culture of fast execution — ship fast, iterate, fail forward. And that works for product. But for infrastructure decisions that will live for years, execution speed matters less than decision quality.
+
+We decided to stop a minute. Instead of moving forward with the rewrite, we implemented the same service in three runtimes — Rust, Node.js, and Bun — and built an automated benchmark that put them under identical load. Not to confirm that Rust was better (we already knew that), but to answer a different question: **how much better, and at what practical cost?**
+
+That pause saved us months of wrong decision.
+
+## How we measured
+
+The benchmark is a bash script that orchestrates the entire cycle for each service:
+
+1. **Spins up infrastructure** — EMQX (MQTT broker) and ClickHouse in Docker
+2. **Starts one service** — only one at a time, to isolate resource consumption
+3. **Scales load progressively** — from 1,000 to 10M simulated drivers, each publishing GPS positions via MQTT
+4. **Measures during load** — CPU and memory with continuous sampling every second (not post-load snapshots), flush latency via Prometheus, and end-to-end loss comparing sent messages vs rows in ClickHouse
+5. **Repeats** with the next service
+
+Each round lasts 20 seconds of sustained load. The metrics we care about:
+
+- **Real throughput** — messages processed per second (not the target, but what actually reached ClickHouse)
+- **Peak CPU and memory during load** — not after, when the service is idle
+- **Flush latency p50 and p99** — how long each batch insert to ClickHouse takes, with nanosecond precision
+- **End-to-end loss** — percentage of sent messages that never reached ClickHouse
+
+Everything runs in Docker Compose on a single machine. It's not a production benchmark — it's a comparative benchmark under identical, controlled conditions, which is what we needed to make the decision.
+
+## The results
+
+### Performance at ~60k msg/s (MQTT broker ceiling)
+
+```
+            Throughput   CPU     Memory    p50      p99
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Rust        60,000/s     29%     4 MiB    1.2ms    1.7ms
+Node        59,000/s     77%    52 MiB    6.7ms   10.0ms
+Bun         59,000/s    113%   142 MiB    3.8ms    8.6ms
+```
+
+Same throughput. Radically different efficiency. All three hit the EMQX broker ceiling — none saturated.
+
+### We scaled up to 10M msg/s target. Nobody flinched.
+
+We increased load progressively: 100k, 500k, 1M, 5M, up to 10M msg/s target. All three services kept processing everything EMQX delivered (~60-70k msg/s) without crashing, without memory leaks, without degradation. The broker was the ceiling, not the services.
+
+This leads to a point rarely discussed in benchmark posts: **your service is almost never the bottleneck.** In a distributed pipeline, the slowest part dominates. It doesn't matter if your consumer processes in 1ms or 7ms if the broker can only deliver 60k msg/s. Optimizing the consumer is like putting an F1 engine in a car stuck in traffic.
+
+## The Bun surprise
+
+Bun was the worst performer. Yes, you read that right.
+
+- **113% CPU** (more than one core) vs 77% for Node at the same throughput
+- **142 MiB of memory** — almost 3x Node and 35x Rust
+- Flush latency better than Node (3.8ms vs 6.7ms p50), but at an unacceptable resource cost
+
+Why? Because our service doesn't use any native Bun APIs. The entire pipeline runs on npm packages designed for Node.js: `mqtt.js` (streams, EventEmitter, net.Socket) and `@clickhouse/client` (http module). Bun executes everything through its Node.js compatibility layer — every call to `Buffer.from()`, every `EventEmitter.emit()`, every TCP socket goes through a shim that translates to Bun's runtime.
+
+Bun is fast when you use `Bun.serve()`, `Bun.file()`, native `fetch()`. When you run npm ecosystem code, you pay the compatibility cost. And in the real world, most of your code *is* npm ecosystem.
+
+**This isn't a criticism of Bun** — it's a reminder that tools have a context. The "Bun is 3x faster than Node" benchmark is real, but it applies to its native APIs. We don't use those.
+
+Sometimes we forget that these runtimes aren't finished tools. Node.js compatibility is a work-in-progress, and that work-in-progress has a measurable cost in production.
+
+### The deeper problem with "faster alternatives"
+
+There's a pattern I see repeating in the industry. A new tool comes out that's "10x faster" in a synthetic benchmark. The hype grows, early adopters migrate, and when you put the tool in a real project you discover the 10x was for the hello world, not for your use case.
+
+Bun is genuinely impressive as a project. JavaScriptCore compiles faster than V8 at startup. `Bun.serve()` is a native HTTP server written in Zig that blows the doors off anything in npm. But none of that matters if your hot path is npm packages running in a compatibility layer.
+
+**Before migrating to a "faster" tool, ask yourself: faster at what exactly? And does that match what my code actually does?**
+
+## The Rust dilemma
+
+Rust is objectively impressive in these results:
+
+- **5.5x less flush latency** than Node (1.2ms vs 6.7ms)
+- **2.5x less CPU** for the same throughput
+- **13x less memory** (4 MiB vs 52 MiB)
+- Stable latency under load — p99 of 1.7ms vs 10ms for Node
+
+If you were choosing a runtime for a high-frequency pipeline that needs to process millions of events per second with predictable latency, Rust wins by a landslide. There's no possible technical argument.
+
+But we don't have that problem.
+
+### The numbers that matter
+
+Vlue operates in Florida. At peak hours, we have hundreds of active drivers. Being generous with growth projections, let's say 5,000 concurrent drivers publishing 2 times per second = **10,000 msg/s**.
+
+Node in the benchmark processed 60,000 msg/s at 77% of one core. Our real traffic is **16% of what Node can handle with a single pod**.
+
+Kubernetes resources for Node:
+
+```yaml
+resources:
+  requests:
+    cpu: "250m"
+    memory: "128Mi"
+  limits:
+    cpu: "1"
+    memory: "256Mi"
+```
+
+Cloud cost: less than $10/month. With Rust it would be less than $5/month.
+
+**Do we rewrite a service in a language nobody on the team masters to save $5/month?**
+
+### "It depends" is the right answer
+
+This isn't an argument against Rust. It's an argument against making infrastructure decisions by technical vanity.
+
+If your team already writes Rust, use it. If your pipeline needs microsecond latency, use it. If you process millions of events per second and every infrastructure dollar counts, use it.
+
+But if your team is 3 people who write TypeScript, your load is 10k msg/s, and the service runs on a $10/month pod — the pragmatic decision isn't the one that sells on Twitter.
+
+I implemented it in Rust. I can say it works. I can also say that maintenance will be done by Vallin or Alain from the backend team, and they write JavaScript. A service that nobody can maintain isn't a good service, regardless of how many milliseconds of latency it saves.
+
+**"We have it in Rust" sells. But a service your team can debug at 3 AM when something fails in production is worth more than p99 of 1.7ms.**
+
+### The hidden cost that no benchmark measures
+
+Benchmarks measure CPU, memory, latency, throughput. They never measure:
+
+- **Onboarding time.** How long does it take a new dev to be productive? In Node, a backend developer on your team can read the entire service in 30 minutes. In Rust, they need to understand lifetimes, the borrow checker, async with Pin, and why `tokio::select!` needs futures to be `Unpin`. Weeks, not minutes.
+
+- **Iteration speed.** You need to add a field to the payload. In Node it's 3 lines and a deploy. In Rust it's 3 lines, a 2-minute `cargo build`, and the hope that the compiler doesn't ask you to refactor half the module because of a lifetime that doesn't match.
+
+- **Talent pool.** When you need to hire, how many developers in your market write Rust? And how many write JavaScript? In Miami, the answer is brutally asymmetric.
+
+- **Context cost.** Your team maintains an API in TypeScript, a frontend in React, scripts in Node. Introducing Rust means someone has to maintain a completely separate toolchain: cargo, clippy, different error handling patterns, a different mental model of memory. That context switching has a real cognitive cost in small teams.
+
+None of this appears in a benchmark table. But if you add up the real TCO — including development time, maintenance, hiring, and production debugging — the $5/month infrastructure difference becomes irrelevant.
+
+## The "Node doesn't scale" myth
+
+There's a persistent narrative in the community that Node.js doesn't work for heavy load. That the single-threaded event loop is a fundamental bottleneck. That "serious companies use Go or Rust."
+
+Our data tells a different story.
+
+Node processed **59,000 messages per second** — receive MQTT, parse JSON, accumulate in buffer, batch insert to ClickHouse — on a single core, with 52 MiB of RAM. And it didn't crash. It didn't have memory leaks. It didn't degrade under sustained load.
+
+Is it less efficient than Rust? Absolutely. It uses 2.5x more CPU and 13x more memory. But "less efficient" is not the same as "doesn't scale." Node doesn't scale *as efficiently* as Rust. But it scales more than enough for the vast majority of real-world use cases.
+
+The single-threaded event loop is a real limitation when your work is CPU-bound: cryptography, image processing, ML inference. But an MQTT→ClickHouse pipeline is **I/O-bound**. Almost all the time is spent waiting for network — receiving from the broker, sending to the database. And for I/O-bound work, Node's event loop is extraordinarily efficient. libuv handles thousands of concurrent I/O operations without the overhead of OS threads.
+
+**If your service is I/O-bound (and most microservices are), Node is probably enough. Don't assume you need to switch runtimes because you read a Fibonacci benchmark.**
+
+## What the benchmark can't tell you
+
+There's something that no automated benchmark captures and yet defines whether a technical decision was good: **what happens in the next 12 months.**
+
+Did the service need changes? Who made them? How long did it take? Did something break in production? Who fixed it and at what time?
+
+I've seen teams choose the "optimal" technology according to benchmarks and then spend months paying the cost of that decision in development speed, bugs nobody knows how to debug, and team frustration. Production performance was impeccable. Team productivity was disastrous.
+
+And I've seen teams choose the "boring" technology and deliver features every week, debug problems in minutes, and sleep well because anyone on the team can touch any service.
+
+**The best technology is the one your team can operate with confidence.** Everything else is premature optimization disguised as good engineering.
+
+## ClickHouse: the silent hero
+
+An insight we almost ignored: ClickHouse absorbed all the load without flinching. With `async_insert` enabled and batch inserts of 5,000 rows, ClickHouse processed 60k inserts/s with imperceptible latency. It wasn't the bottleneck at any point in the benchmark.
+
+The combination of MergeTree for time-series append-only + Materialized View with AggregatingMergeTree for last-known-position gives us the best of both worlds: complete history for analytics and real-time last position queries, without maintaining two separate systems.
+
+If you're considering a similar telemetry pipeline, ClickHouse deserves to be on your shortlist. It's one of those decisions where the "right" technology and the "simple" technology turn out to be the same.
+
+## What we actually learned
+
+**1. Measure before deciding.** We were going to rewrite in Rust without data. The benchmark showed us that the real bottleneck is EMQX, not the service runtime. We would have optimized what doesn't matter.
+
+**2. Measure the right thing.** A benchmark with broken instrumentation is worse than having no benchmark. It gives you false confidence. Spend time validating that your measurement tool works before trusting the results.
+
+**3. The npm ecosystem is an anchor.** Bun promises speed but when your real code is npm packages, you pay the translation cost. Until the ecosystem has native libraries for Bun, the promise is partial. This isn't a Bun failure — it's an early adoption reality to consider.
+
+**4. Efficiency isn't the same as necessity.** Rust is 13x more memory efficient. That matters when scaling to millions of connections. It doesn't matter when your total memory is 52 MiB. Knowing when a technical advantage translates to a practical advantage is the difference between a tech lead and a senior engineer.
+
+**5. Scale where it really matters.** If tomorrow we need more capacity, we add a node to EMQX or one more Node pod (shared subscriptions make horizontal scaling trivial). The service is not the bottleneck and probably never will be.
+
+**6. Your team is part of the architecture.** Your team's skills, preferences, and size aren't annoying constraints to ignore when choosing technology. They're first-class requirements, as important as milliseconds of latency.
+
+## Final stack
+
+- **Runtime:** Node.js
+- **MQTT:** EMQX (with shared subscriptions for scaling)
+- **Storage:** ClickHouse (MergeTree + Materialized View for last position)
+- **Proven capacity:** 60,000 msg/s per instance
+- **Required capacity:** ~10,000 msg/s
+- **Headroom:** 6x before needing to scale
+- **Cost:** one pod with 250m CPU and 128Mi RAM
+
+Sometimes the right decision is the boring one.
