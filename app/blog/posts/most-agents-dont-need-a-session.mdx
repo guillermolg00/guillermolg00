@@ -1,0 +1,202 @@
+---
+title: "I wrapped every agent in a Managed Agent session. Most of them didn't need one."
+publishedAt: "2026-04-11"
+summary: "Building a multi-agent system for a healthcare marketplace, I defaulted to Claude Managed Agents for everything. Then I looked at what each agent actually did, and realized four out of five were just structured function calls."
+---
+
+I've been building a multi-agent system for Zentrumcare, a healthcare marketplace that matches families in Florida with pediatric therapy clinics (PPEC, ABA). The manual workflow is painful: a human receives a form submission, calls the family, searches for clinics, emails each one, waits, coordinates. A single lead takes 24–48 hours. The target with automation is 2–4 hours, and the design is five specialized agents orchestrated by a durable workflow engine.
+
+When I started, I made a default decision without examining it: every agent would be a [Claude Managed Agent](https://platform.claude.com/docs/en/managed-agents/overview). It was the newest primitive from Anthropic, it handled tool execution and state for you, and I was excited to build on it. I wrapped every agent in a session. I set up vaults for MCP credentials. I built polling loops for events.
+
+Then I stopped and looked at what each agent was actually doing. Four out of five of them were single-shot structured function calls dressed up in a session harness they didn't need.
+
+## What Managed Agents is actually for
+
+Managed Agents is built around four concepts:
+
+- **Agent** — the model + system prompt + tools + MCP servers + skills
+- **Environment** — the cloud container (packages, network access) the agent runs in
+- **Session** — a running instance of an agent, doing a specific task
+- **Events** — the stream of messages and state changes between your app and the agent
+
+This is a harness for **long-running, stateful, asynchronous work** when you want Anthropic's managed runtime instead of building the agent loop, tool execution, and environment yourself. Multi-turn chat is the clearest fit, but it's not the only one. You create a session, it sticks around, you send events, Claude executes tools in its container, and state persists across turns. [Vaults](https://platform.claude.com/docs/en/managed-agents/vaults) let you register per-user credentials so each end-user's Linear / Slack / custom-MCP tokens stay separate — the agent authenticates with whichever vault you reference at session creation.
+
+It's excellent for what it's designed for: a parent chats with an intake agent for fifteen minutes across multiple messages, the agent asks follow-up questions, calls tools to verify insurance mid-conversation, and the session holds the context throughout. That's a session. That's what it's for.
+
+The problem is I had five agents, and only one of them looked like that.
+
+## The five agents, honestly examined
+
+Here's what each of my agents actually does:
+
+**Intake Agent.** A parent starts a chat on the landing page. The agent collects diagnosis, insurance, zip code, scheduling preferences. It asks follow-ups. It reads and writes lead state via tools. A session lasts minutes, sometimes returns across hours. **This is a session.**
+
+**Qualifier + Verifier.** Receives the completed lead profile. Scores it 1–5, verifies phone format, checks insurance is in-network, confirms the zip is in a coverage area, and returns a routing decision. One input, one structured output. Takes one model call. **This is `generateObject`.**
+
+**Provider Search.** Receives a patient profile. Queries Postgres, hits Google Places, scrapes an AHCA directory through Firecrawl, deduplicates, ranks. Returns a shortlist of 3–5 clinics. Short tool chain, structured output. **Also `generateObject`.**
+
+**Outreach Generation.** Receives a clinic and an anonymized patient profile. Drafts an email. One call. **`generateText` with Sonnet for quality.**
+
+**Outreach Classification.** Receives an inbound clinic response. Returns `confirmed | rejected | needs-info | no-response`. One call. **`generateObject` with Haiku for speed.**
+
+**Coordinator.** Receives the winning clinic. Triggers guardian notification, schedules reminders, logs the match. One call plus some side effects. **`generateObject`.**
+
+Only the Intake Agent is actually a conversation. The other five are pure functions: structured input, structured output, one or two model calls, done. You could still choose Managed Agents for a one-shot task if you needed its managed runtime, but none of those five did.
+
+## What wrapping them in sessions was costing me
+
+Running a `generateObject` call inside a Managed Agent session is technically fine. But the bill comes due in places that weren't obvious on day one:
+
+**Latency.** Creating a session is not free. For an agent that does one inference and exits, session creation + event polling can double the wall-clock time of the actual work.
+
+**Cost overhead.** Each session has its own context and state machine. For one-shot calls, you're paying for infrastructure you're not using.
+
+**Testability.** This was the one that actually hurt. I wanted a golden-set eval that ran twenty test cases through the qualifier on every PR. With the qualifier wrapped in a session, the test had to create a session, send an event, poll for completion, and tear down — for each case. The eval went from "runs in seconds" to "runs in a minute and sometimes flakes on polling." That's the difference between a CI gate you trust and a CI gate you disable.
+
+**Mental model.** A `generateObject` call with a Zod output schema is something every TypeScript engineer on the team can read and reason about. A session that polls events, handles tool results, and manages state is a new thing to learn. If 80% of your agents could be the first kind and you make them the second kind, you're buying complexity for no feature.
+
+## The decision matrix I wish I'd started with
+
+<table>
+  <thead>
+    <tr>
+      <th>Signal</th>
+      <th>Managed Agent session</th>
+      <th>AI SDK single-shot</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Multi-turn conversation with a user</td>
+      <td>✓</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Needs Anthropic vault-backed per-user MCP mid-session</td>
+      <td>✓</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Long-running (minutes to hours)</td>
+      <td>✓</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Persistent filesystem between turns</td>
+      <td>✓</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Single input → structured output</td>
+      <td>—</td>
+      <td>✓</td>
+    </tr>
+    <tr>
+      <td>Runs inside an orchestration step</td>
+      <td>—</td>
+      <td>✓</td>
+    </tr>
+    <tr>
+      <td>Latency-sensitive (&lt; 2s)</td>
+      <td>—</td>
+      <td>✓</td>
+    </tr>
+    <tr>
+      <td>Needs to run 20× in a CI eval</td>
+      <td>—</td>
+      <td>✓</td>
+    </tr>
+  </tbody>
+</table>
+
+AI SDK can also talk to MCP servers directly over HTTP / SSE with its own auth layer. That row is specifically about wanting Anthropic's vault-backed credential model inside a Managed Agent session, not about MCP in general.
+
+Applied to Zentrumcare: one agent (Intake) gets a session. The other five are AI SDK calls inside Trigger.dev steps. That's the entire rule.
+
+## How the code looks now
+
+The Intake Agent, the one that actually needs a session:
+
+```typescript
+// apps/web/lib/intake.ts
+export async function createIntakeSession(userVaultId: string) {
+  const client = getAnthropic();
+  return client.beta.sessions.create({
+    agent: process.env.INTAKE_AGENT_ID!,
+    environment_id: process.env.INTAKE_ENV_ID!,
+    vault_ids: [userVaultId],
+  });
+}
+```
+
+The Qualifier, which I had briefly wrapped in a session for no reason:
+
+```typescript
+// packages/ai/src/agents/qualifier.ts
+import { generateObject } from "ai";
+import { claude } from "@ai-sdk/anthropic";
+import { QUALIFIER_PROMPT } from "../prompts/templates/qualifier";
+import { verifyPhone, verifyInsurance, verifyZip } from "../tools";
+import { qualificationSchema } from "../schemas/lead";
+
+export async function qualify(lead: LeadInput): Promise<QualificationResult> {
+  const { object } = await generateObject({
+    model: claude("claude-haiku-4-5"),
+    system: QUALIFIER_PROMPT,
+    prompt: JSON.stringify(lead),
+    tools: { verifyPhone, verifyInsurance, verifyZip },
+    schema: qualificationSchema,
+  });
+  return object;
+}
+```
+
+Twenty lines, typed input, typed output, runs in a second, testable against the golden set without any infrastructure. The Trigger.dev step that calls it is another ten lines:
+
+```typescript
+// apps/trigger/src/steps/qualify.ts
+export const qualifyStep = task({
+  id: "qualify",
+  run: async ({ leadId }: { leadId: string }) => {
+    const lead = await db.leads.get(leadId);
+    const result = await ai.qualify(lead);
+    await db.leads.update(leadId, { qualification: result });
+    return result;
+  },
+});
+```
+
+## The part that made the decision sticky
+
+The reason I can say "swap Managed Agent for `generateObject`" and mean it without rewriting half the system is that the consumer doesn't know which runtime is underneath. Everything goes through the AI package's public surface:
+
+```typescript
+// packages/ai/src/index.ts
+export { qualify } from "./agents/qualifier";
+export { searchProviders } from "./agents/provider-search";
+export { generateOutreach, classifyResponse } from "./agents/outreach";
+export { coordinate } from "./agents/coordinator";
+export { createIntakeSession } from "./agents/intake";
+```
+
+A Trigger.dev step calls `ai.qualify(lead)`. The web app calls `ai.createIntakeSession(vaultId)`. Neither knows — or needs to know — whether the implementation is a single-shot call, a session, a chain, or a future thing that doesn't exist yet. If tomorrow Anthropic ships a cheaper primitive for short-chain structured tasks, I change it inside `packages/ai` and the rest of the system doesn't move.
+
+This boundary is the decision that made everything else easy. I'll write about that structure in the next post.
+
+## What the numbers look like now
+
+For 200 leads per month, the AI layer costs around $98/month total: roughly $9 in Anthropic usage (Haiku for most agents, Sonnet for outreach drafting), $64 in Google Places lookups, $25 for Trigger.dev. Under $0.50 per lead. For reference, manual processing of a lead is between $15 and $40 in human time.
+
+Those numbers aren't the interesting part. The interesting part is that the qualifier eval runs in six seconds on my laptop, the CI gate actually works, and when a prompt regression slips in, I know within the PR instead of in production.
+
+## The lesson that generalizes
+
+The default I fell into — "new primitive exists, use it for everything" — is the same trap I've watched teams fall into with every new runtime, framework, and abstraction. Rust for the service that does 10k msg/s. Bun because it's fast. A microservice because microservices scale. Managed Agents because agents are managed.
+
+The actual question is narrower and less exciting: **what is the minimum apparatus this specific task requires?** For a multi-turn chat with tool calls and per-user credentials, a session. For a function that takes structured input and returns structured output, a function call.
+
+Most of my agents didn't need a session. I suspect most of yours don't either.
+
+---
+
+*Next post: how `packages/ai` is structured so that the boundary above actually holds up — prompts, tools, agents, deterministic lists, and where the golden-set eval lives.*

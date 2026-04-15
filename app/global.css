@@ -119,6 +119,35 @@ html {
   @apply list-decimal pl-6;
 }
 
+.prose table {
+  @apply my-6 w-full text-left text-sm;
+}
+
+.prose thead tr {
+  @apply border-b border-neutral-300 dark:border-neutral-700;
+}
+
+.prose th {
+  @apply px-3 py-2 font-medium text-neutral-900 dark:text-neutral-100;
+}
+
+.prose tbody tr {
+  @apply border-b border-neutral-200 dark:border-neutral-800;
+}
+
+.prose tbody tr:last-child {
+  @apply border-b-0;
+}
+
+.prose td {
+  @apply px-3 py-2 align-top text-neutral-700 dark:text-neutral-300;
+}
+
+.prose th:not(:first-child),
+.prose td:not(:first-child) {
+  @apply text-center;
+}
+
 .prose > :first-child {
   /* Override removing top margin, causing layout shift */
   margin-top: 1.25em !important;
@@ -142,11 +171,10 @@ input[type="email"] {
   appearance: none;
 }
 
-table {
+.prose table {
   display: block;
-  max-width: fit-content;
+  min-width: 100%;
   overflow-x: auto;
-  white-space: nowrap;
 }
 
 .title {

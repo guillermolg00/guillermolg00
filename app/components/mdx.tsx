@@ -4,6 +4,17 @@ import { MDXRemote } from "next-mdx-remote/rsc";
 import { highlight } from "sugar-high";
 import React from "react";
 
+function MarkdownTable(props) {
+	return (
+		<div className="my-6 overflow-x-auto">
+			<table
+				{...props}
+				className="table min-w-full border-collapse text-sm"
+			/>
+		</div>
+	);
+}
+
 function Table({ data }) {
 	let headers = data.headers.map((header, index) => (
 		<th key={index}>{header}</th>
@@ -96,6 +107,7 @@ let components = {
 	Image: RoundedImage,
 	a: CustomLink,
 	code: Code,
+	table: MarkdownTable,
 	Table,
 };
 

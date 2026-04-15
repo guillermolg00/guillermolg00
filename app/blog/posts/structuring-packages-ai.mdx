@@ -1,0 +1,244 @@
+---
+title: "The part of my monorepo that actually matters: packages/ai"
+publishedAt: "2026-04-13"
+summary: "I didn't pick Turborepo for the build caching. I picked it so I could put one package between every AI decision and the rest of the codebase. Here's how that package is structured and why each folder earns its place."
+---
+
+In a [previous post](/blog/most-agents-dont-need-a-session) I wrote about building Zentrumcare's multi-agent pipeline — five agents that qualify, search, email clinics in parallel, and coordinate the match for families looking for pediatric therapy in Florida. I said the thing that made it possible to swap a Managed Agent session for a single `generateObject` call without rewriting the system was the package boundary underneath. This is that post.
+
+Zentrumcare is a Turborepo monorepo. Most of the Turborepo value (build caching, task graphs, filtered pipelines) is real but unremarkable — you can read their docs. The interesting decision is what lives in `packages/ai` and what the rest of the codebase is forbidden from knowing.
+
+I've spent a lot of time thinking about how to keep this layer ordered as the AI surface area in my repos keeps growing. One prompt becomes three. One helper becomes six tools. A classifier turns into a small workflow. After a few projects, I stopped treating this as "some LLM code" scattered through `apps/web` and started treating it as a system that needs its own boundary.
+
+After a few rounds of doing this wrong, this is the structure I keep coming back to:
+
+## The boundary
+
+`packages/ai` exports a small, typed public surface:
+
+```typescript
+// packages/ai/src/index.ts
+export { qualify } from "./agents/qualifier";
+export { searchProviders } from "./agents/provider-search";
+export { generateOutreach, classifyResponse } from "./agents/outreach";
+export { coordinate } from "./agents/coordinator";
+export { createIntakeSession } from "./agents/intake";
+
+export type { QualificationResult } from "./schemas/lead";
+export type { SearchResult } from "./schemas/provider";
+export type { EscalationTrigger } from "./schemas/escalation";
+```
+
+That's the entire contract. The Trigger.dev worker calls `ai.qualify(lead)`. The Next.js app calls `ai.createIntakeSession(vaultId)`. Neither of them imports `@ai-sdk/anthropic`, or a model string, or a prompt template. They don't know which agent is a Managed Agent session and which is a single-shot call. They don't know what model is chosen. They don't know what tools are attached.
+
+Everything else in the package exists to serve that contract.
+
+## The structure
+
+Inside `packages/ai/src/`, the layout is deliberate:
+
+```
+packages/ai/src/
+├── agents/           # Composition: prompt + model + tools + schema
+│   ├── qualifier.ts
+│   ├── provider-search.ts
+│   ├── outreach.ts         # Dual-mode (generation + classification)
+│   ├── coordinator.ts
+│   └── intake.ts           # Managed Agent session config
+│
+├── prompts/
+│   ├── templates/          # One file per agent (per mode if dual)
+│   │   ├── qualifier.ts
+│   │   ├── outreach-gen.ts
+│   │   ├── outreach-rx.ts
+│   │   ├── search.ts
+│   │   └── coordinator.ts
+│   ├── registry.ts         # Active version per agent
+│   └── variables.ts        # Injection helpers
+│
+├── tools/
+│   ├── verify-phone.ts
+│   ├── verify-insurance.ts
+│   ├── verify-zip.ts
+│   ├── search-places.ts
+│   ├── search-directory.ts
+│   └── send-email.ts
+│
+├── schemas/              # Zod input/output per agent
+│   ├── lead.ts
+│   ├── provider.ts
+│   ├── match.ts
+│   └── escalation.ts
+│
+├── lists/                # Deterministic closed sets
+│   ├── insurances.ts
+│   ├── diagnoses.ts
+│   └── clinic-tiers.ts
+│
+├── evaluation/
+│   ├── golden-set.json   # 20 hand-written test cases
+│   ├── runner.ts
+│   └── metrics.ts
+│
+└── index.ts              # Public surface
+```
+
+Four of these folders earn a justification that isn't obvious.
+
+## Why `agents/`, `tools/`, and `prompts/` are separate
+
+An agent is the composition of a prompt, a model, a set of tools, and an output schema. I've watched this composition collapse on itself in every codebase where those four things live together: prompts get hardcoded inside tool implementations, tool logic leaks into prompt templates, a model string appears in three places with two different versions.
+
+Keeping them in separate directories forces explicit assembly at the agent level:
+
+```typescript
+// packages/ai/src/agents/qualifier.ts
+import { QUALIFIER_PROMPT } from "../prompts/templates/qualifier";
+import { verifyPhone, verifyInsurance, verifyZip } from "../tools";
+import { qualificationSchema } from "../schemas/lead";
+import { generateObject } from "ai";
+import { claude } from "@ai-sdk/anthropic";
+
+export async function qualify(input: LeadInput): Promise<QualificationResult> {
+  const { object } = await generateObject({
+    model: claude("claude-haiku-4-5"),
+    system: QUALIFIER_PROMPT,
+    prompt: JSON.stringify(input),
+    tools: { verifyPhone, verifyInsurance, verifyZip },
+    schema: qualificationSchema,
+  });
+  return object;
+}
+```
+
+You can read this agent definition in twenty seconds. Model, prompt, tools, schema — each imported from the one place it lives. When a prompt regression shows up, I know exactly which file to open. When I want to reuse `verifyInsurance` in the provider-search agent, the import is one line.
+
+## Why `lists/` is TypeScript, not JSON
+
+This one is specific to multi-agent systems and I wish someone had told me before I learned it the hard way.
+
+In a chain of agents, uncertainty is cumulative. If the intake agent accepts free-text for the insurance field, the qualifier has to fuzzy-match it, the provider-search has to re-normalize it, and the outreach agent might generate an email mentioning a plan that doesn't exist. Each downstream agent amplifies whatever the upstream agent got wrong.
+
+The fix is to eliminate the entire class of error at the source: when an agent picks from a set of known values, that set should be a typed list.
+
+```typescript
+// packages/ai/src/lists/insurances.ts
+export const INSURANCES = [
+  "Medicaid (Florida)",
+  "Sunshine Health",
+  "Molina Healthcare",
+  "Prestige Health Choice",
+  // ...
+] as const;
+
+export type Insurance = (typeof INSURANCES)[number];
+
+export const isValidInsurance = (v: string): v is Insurance =>
+  INSURANCES.includes(v as Insurance);
+```
+
+JSON would give me the data. TypeScript gives me the data, a literal union type derived from it, and a type guard I can import anywhere. The intake agent's output schema references `Insurance`. The qualifier's input schema references `Insurance`. The database column should mirror that with an enum or check constraint if the system depends on it. If the intake agent returns a string that isn't in the list, Zod refuses it before the qualifier ever runs.
+
+The rule I default to: **if an agent is picking from a known set of values, that set is a typed list in `packages/ai/src/lists/`**. Not a prompt instruction. Not a description. A closed list.
+
+## Why prompts are versioned, with a registry
+
+Prompts are the single most-iterated artifact in an agent system. They get tuned weekly. They degrade subtly. They need rollback.
+
+Each template file keeps its history and exposes the active version:
+
+```typescript
+// packages/ai/src/prompts/templates/qualifier.ts
+export const QUALIFIER_V1 = `You are a qualification agent...`;
+export const QUALIFIER_V2 = `You are a qualification agent... [revised with failure-mode examples]`;
+export const QUALIFIER_PROMPT = QUALIFIER_V2;
+```
+
+The registry is the single place that maps agent → active version, which makes cross-cutting changes auditable:
+
+```typescript
+// packages/ai/src/prompts/registry.ts
+export const PROMPT_REGISTRY = {
+  qualifier: { version: "v2", prompt: QUALIFIER_PROMPT },
+  search: { version: "v1", prompt: SEARCH_PROMPT },
+  outreachGen: { version: "v3", prompt: OUTREACH_GEN_PROMPT },
+  outreachRx: { version: "v1", prompt: OUTREACH_RX_PROMPT },
+  coordinator: { version: "v1", prompt: COORDINATOR_PROMPT },
+} as const;
+```
+
+A related rule I had to learn by failing at it: **default to one system prompt per mode.**
+
+The Outreach Agent has two modes. *Generation* drafts a personalized email to a clinic (Sonnet 4.5, quality matters — it's the clinic's first impression). *Classification* reads an inbound clinic reply and returns `confirmed | rejected | needs-info | no-response` (Haiku 4.5, speed matters).
+
+My first version tried to handle both in one prompt with an `if task == "classify" ... else ...` instruction. Both modes degraded. The generation got more structured and less human; the classification got more verbose and sometimes wandered into free-form text. Splitting them into two prompts — `outreach-gen.ts` and `outreach-rx.ts` — each with its own model, its own eval, and its own file, fixed both simultaneously.
+
+If a single agent has two materially different behaviors, I now give it two prompts, two entries in the registry, and two eval sets. Conditional-behavior prompts can work, but in my experience they degrade faster than teams expect.
+
+## Why `evaluation/` lives inside the AI package
+
+The golden set and the eval runner don't live in `apps/web/tests/` or `apps/trigger/tests/`. They live next to the agents they test. This isn't just organizational — it enforces a workflow.
+
+```typescript
+// packages/ai/src/evaluation/runner.ts
+import goldenSet from "./golden-set.json";
+import { qualify } from "../agents/qualifier";
+
+export async function runQualifierEval() {
+  const results = await Promise.all(
+    goldenSet.qualifier.map(async (testCase) => {
+      const start = Date.now();
+      const actual = await qualify(testCase.input);
+      return {
+        id: testCase.id,
+        expected: testCase.expected,
+        actual,
+        correct: scoreQualification(actual, testCase.expected),
+        latencyMs: Date.now() - start,
+      };
+    })
+  );
+
+  const accuracy = results.filter((r) => r.correct).length / results.length;
+  const p95Latency = percentile(results.map((r) => r.latencyMs), 95);
+  return { accuracy, p95Latency, details: results };
+}
+```
+
+The test suite runs `turbo run test --filter=@zentrumcare/ai` and asserts `accuracy >= 0.9` and `p95Latency <= 2000`. That's the CI gate. Because the AI package has no runtime dependencies on Trigger.dev or the database, this runs against real model calls in seconds, not minutes.
+
+The lesson I keep relearning: **for any high-value agent, write the golden set before you write the agent.** Twenty hand-crafted test cases force you to define exactly what "correct" means — which fields matter, which edge cases exist, what the model is allowed to get wrong. Every hour spent on that saves ten hours debugging surprising outputs later. I built most of Zentrumcare's agents before I built the evals. It's the decision I'd reverse.
+
+## The confidence math (with a caveat)
+
+Here's a useful back-of-the-envelope intuition with one honest footnote. In a chain of N agents where each has independent confidence C, the effective chain confidence is C^N:
+
+| Chain length | Each 90% | Each 95% |
+|---|---|---|
+| 2 agents | 81.0% | 90.2% |
+| 3 agents | 72.9% | 85.7% |
+| 4 agents | 65.6% | 81.4% |
+| 5 agents | 59.0% | 77.4% |
+
+The caveat: agent errors aren't actually independent. An upstream misclassification biases the downstream agent toward compounding the same mistake, so in practice chain confidence degrades *faster* than the table suggests — not slower. This table is a sanity check, not a production reliability metric.
+
+Either way, the implication is the same: escalation in a multi-agent system has to be more conservative than in a single-agent flow. For Zentrumcare this led to two concrete rules:
+
+1. **Verify inline at the earliest agent.** The qualifier and the verifier were originally two steps. I merged them the moment I realized a handoff between "scored" and "verified" created a point where invalid data could propagate silently into provider search. Now verification is a gate *inside* the qualifier — fail there, escalate there.
+2. **Hard stops, not soft fallbacks.** Zero clinics on the shortlist doesn't trigger a wider search. It halts the workflow and pages a human. The system knows what it doesn't know.
+
+## Three things I'd do differently
+
+**Write the eval set before the agent, at least for the agents that matter.** Twenty cases, by hand, with inputs and expected outputs, before a single prompt. It's the one decision that would have saved me the most time.
+
+**One system prompt per mode by default.** The Outreach Agent taught me this the hard way. If an agent has two materially different behaviors, give each its own prompt file, its own model, and its own eval set. Don't branch on task inside the prompt unless you've proved the shared prompt stays good at both.
+
+**Deterministic lists before any high-cost free-text field.** Every hour curating the insurance and diagnosis lists saved ten hours debugging downstream hallucinations. If an agent is picking from a known set, make it a typed list before you write the prompt that picks from it, and enforce it at runtime and in storage if it's business-critical.
+
+## What this structure is really doing
+
+Step back from the folder names for a second. The value isn't `agents/` vs `tools/` vs `prompts/`. The value is that every AI decision — which model, which prompt version, which tool set, which output shape — is contained inside one package with a small, typed public surface. The rest of the codebase (web app, Trigger.dev workers, eventually a Slack bot or a CLI if one shows up) consumes that surface and knows nothing else.
+
+When you need to swap a Managed Agent for a `generateObject` call, you change it inside `packages/ai` and the rest of the system doesn't move. When you need to roll back a prompt, you change it inside `packages/ai`. When you need to run a golden-set eval on every PR, it runs against `packages/ai` without booting the rest of the project.
+
+The monorepo gives you the file layout and the build caching. The boundary is the part that actually matters.
