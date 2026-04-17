@@ -183,12 +183,6 @@ A Trigger.dev step calls `ai.qualify(lead)`. The web app calls `ai.createIntakeS
 
 This boundary is the decision that made everything else easy. I'll write about that structure in the next post.
 
-## What the numbers look like now
-
-For 200 leads per month, the AI layer costs around $98/month total: roughly $9 in Anthropic usage (Haiku for most agents, Sonnet for outreach drafting), $64 in Google Places lookups, $25 for Trigger.dev. Under $0.50 per lead. For reference, manual processing of a lead is between $15 and $40 in human time.
-
-Those numbers aren't the interesting part. The interesting part is that the qualifier eval runs in six seconds on my laptop, the CI gate actually works, and when a prompt regression slips in, I know within the PR instead of in production.
-
 ## The lesson that generalizes
 
 The default I fell into — "new primitive exists, use it for everything" — is the same trap I've watched teams fall into with every new runtime, framework, and abstraction. Rust for the service that does 10k msg/s. Bun because it's fast. A microservice because microservices scale. Managed Agents because agents are managed.
