@@ -14,6 +14,6 @@ TypeScript · NestJS · Express · Hono · React · Next.js · React Native · K
 
 ## Links
 
-- [guillermolg00.com](https://guillermolg00.com)
+- [guillermolg00.com](https://guillermolg.com)
 - [LinkedIn](https://www.linkedin.com/in/guillermolg)
 - [X](https://x.com/guillermolg00)
