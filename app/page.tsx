@@ -10,7 +10,7 @@ export default function Page() {
 						Guillermo Lopez Gomez
 					</h1>
 					<p className="text-lg text-neutral-600 dark:text-neutral-400">
-						CTO & Backend Engineer
+						Full Stack Developer
 					</p>
 				</div>
 				<Image
