@@ -33,7 +33,8 @@ export default function Page() {
 			<p className="mb-8 text-neutral-600 dark:text-neutral-400 text-sm">
 				TypeScript · NestJS · Express · Hono · React · Next.js · React
 				Native · Kafka · RabbitMQ · MQTT · Redis · MongoDB · PostgreSQL ·
-				Docker · Kubernetes · Terraform · AWS
+				Docker · Kubernetes · Terraform · AWS ·  AI SDK · MCP · Agentic orchestration · managed RAG ·
+				Prompt engineering
 			</p>
 
 			<h2 className="mb-4 text-xl font-semibold tracking-tighter">
