@@ -1,6 +1,5 @@
 # Guillermo Lopez Gomez
-
-CTO & Backend Engineer
+Full Stack developer
 
 ## Stack
 
