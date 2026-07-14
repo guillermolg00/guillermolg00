@@ -5,6 +5,12 @@ Full Stack developer
 
 TypeScript · NestJS · Express · Hono · React · Next.js · React Native · Kafka · RabbitMQ · MQTT · Redis · MongoDB · PostgreSQL · Docker · Kubernetes · Terraform · AWS
 
+## AI
+
+LLM Applications · AI Agents · Multi-Agent Systems · MCP Servers · RAG ·
+AI SDKs · Prompt Engineering · Agent Orchestration · Tool Calling ·
+Vector Databases · Local LLMs · AI Workflows
+
 ## Open Source
 
 - [translate-kit](https://www.npmjs.com/package/translate-kit) — npm package to streamline i18n setup and maintenance in Next.js with AI
