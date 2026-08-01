@@ -43,6 +43,19 @@ export default function Page() {
 			<ul className="mb-8 text-sm space-y-2">
 				<li>
 					<a
+						href="https://www.morphicons.com"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="font-medium underline decoration-neutral-400 dark:decoration-neutral-600 underline-offset-2"
+					>
+						morphicons
+					</a>
+					<span className="text-neutral-600 dark:text-neutral-400">
+						{" "}— any stroke-based icon morphs into any other with spring physics, zero dependencies and ~6 KB gzip
+					</span>
+				</li>
+				<li>
+					<a
 						href="https://www.npmjs.com/package/translate-kit"
 						target="_blank"
 						rel="noopener noreferrer"

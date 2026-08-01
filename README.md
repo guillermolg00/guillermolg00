@@ -13,6 +13,7 @@ Vector Databases · Local LLMs · AI Workflows
 
 ## Open Source
 
+- [morphicons](https://www.morphicons.com) — any stroke-based icon morphs into any other with spring physics, zero dependencies and ~6 KB gzip
 - [translate-kit](https://www.npmjs.com/package/translate-kit) — npm package to streamline i18n setup and maintenance in Next.js with AI
 - [nextjs-stripe-store](https://github.com/guillermolg00/nextjs-stripe-store) — ready-to-use Next.js + Stripe template with all the basics built in
 - [mongodb-mcp-vercel](https://github.com/guillermolg00/mongodb-mcp-vercel) — read-only MongoDB MCP server for serverless deployment on Vercel
