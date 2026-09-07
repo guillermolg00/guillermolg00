@@ -43,6 +43,22 @@ export default function Page() {
 			<ul className="mb-8 text-sm space-y-2">
 				<li>
 					<a
+						href="https://github.com/Alain00/blobot"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="font-medium underline decoration-neutral-400 dark:decoration-neutral-600 underline-offset-2"
+					>
+						blobot
+					</a>
+					<span className="text-neutral-500 dark:text-neutral-500">
+						{" "}(work in progress)
+					</span>
+					<span className="text-neutral-600 dark:text-neutral-400">
+						{" "}— desktop app that runs the coding agents already installed on your machine (Claude Code, Codex, Cursor) as one team on the same repo, each in its own git worktree and Docker sandbox
+					</span>
+				</li>
+				<li>
+					<a
 						href="https://www.morphicons.com"
 						target="_blank"
 						rel="noopener noreferrer"
@@ -91,6 +107,19 @@ export default function Page() {
 					</a>
 					<span className="text-neutral-600 dark:text-neutral-400">
 						{" "}— read-only MongoDB MCP server for serverless deployment on Vercel
+					</span>
+				</li>
+				<li>
+					<a
+						href="https://github.com/Alain00/blobatar"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="font-medium underline decoration-neutral-400 dark:decoration-neutral-600 underline-offset-2"
+					>
+						blobatar
+					</a>
+					<span className="text-neutral-600 dark:text-neutral-400">
+						{" "}— contributor
 					</span>
 				</li>
 				<li>
