@@ -23,10 +23,12 @@ export default function Page() {
 				/>
 			</div>
 			<p className="mb-8">
-				From complex distributed systems with microservices to fullstack apps
-				in Next.js or a simple monolith in Hono — the need dictates the
-				architecture. I lead engineering teams, make technical decisions, and
-				sometimes write frontend code — but don't tell anyone.
+				I'm the CTO at Vlue Logistics, where I lead the engineering team and
+				own the technical decisions behind the platform. I've built everything
+				from distributed systems with event-driven microservices to full stack
+				apps in Next.js and lean monoliths in Hono. The problem decides the
+				architecture, not the trend. Lately, most of my work is on AI agents
+				and the infrastructure that makes them reliable in production.
 			</p>
 
 			<h2 className="mb-4 text-xl font-semibold tracking-tighter">Stack</h2>
@@ -54,7 +56,7 @@ export default function Page() {
 						{" "}(work in progress)
 					</span>
 					<span className="text-neutral-600 dark:text-neutral-400">
-						{" "}— desktop app that runs the coding agents already installed on your machine (Claude Code, Codex, Cursor) as one team on the same repo, each in its own git worktree and Docker sandbox
+						{": "}desktop app that runs the coding agents already installed on your machine (Claude Code, Codex, Cursor) as one team on the same repo, each in its own git worktree and Docker sandbox
 					</span>
 				</li>
 				<li>
@@ -67,7 +69,7 @@ export default function Page() {
 						morphicons
 					</a>
 					<span className="text-neutral-600 dark:text-neutral-400">
-						{" "}— any stroke-based icon morphs into any other with spring physics, zero dependencies and ~6 KB gzip
+						{": "}any stroke-based icon morphs into any other with spring physics, zero dependencies and ~6 KB gzip
 					</span>
 				</li>
 				<li>
@@ -80,7 +82,7 @@ export default function Page() {
 						translate-kit
 					</a>
 					<span className="text-neutral-600 dark:text-neutral-400">
-						{" "}— npm package to streamline i18n setup and maintenance in Next.js with AI
+						{": "}npm package to streamline i18n setup and maintenance in Next.js with AI
 					</span>
 				</li>
 				<li>
@@ -93,7 +95,7 @@ export default function Page() {
 						nextjs-stripe-store
 					</a>
 					<span className="text-neutral-600 dark:text-neutral-400">
-						{" "}— ready-to-use Next.js + Stripe template with all the basics built in
+						{": "}ready-to-use Next.js + Stripe template with all the basics built in
 					</span>
 				</li>
 				<li>
@@ -106,7 +108,7 @@ export default function Page() {
 						mongodb-mcp-vercel
 					</a>
 					<span className="text-neutral-600 dark:text-neutral-400">
-						{" "}— read-only MongoDB MCP server for serverless deployment on Vercel
+						{": "}read-only MongoDB MCP server for serverless deployment on Vercel
 					</span>
 				</li>
 				<li>
@@ -119,7 +121,7 @@ export default function Page() {
 						blobatar
 					</a>
 					<span className="text-neutral-600 dark:text-neutral-400">
-						{" "}— contributor
+						{": "}contributor
 					</span>
 				</li>
 				<li>
@@ -132,7 +134,7 @@ export default function Page() {
 						trigger.dev
 					</a>
 					<span className="text-neutral-600 dark:text-neutral-400">
-						{" "}— one-time contributor
+						{": "}one-time contributor
 					</span>
 				</li>
 			</ul>
@@ -148,7 +150,7 @@ export default function Page() {
 							Backend Lead → CTO
 						</td>
 						<td className="py-2 text-neutral-600 dark:text-neutral-400">
-							2023 — Present
+							2023 – Present
 						</td>
 					</tr>
 					<tr className="border-b border-neutral-200 dark:border-neutral-800">
@@ -157,7 +159,7 @@ export default function Page() {
 							Backend & DevOps
 						</td>
 						<td className="py-2 text-neutral-600 dark:text-neutral-400">
-							2022 — 2023
+							2022 – 2023
 						</td>
 					</tr>
 					<tr className="border-b border-neutral-200 dark:border-neutral-800">
@@ -166,7 +168,7 @@ export default function Page() {
 							PM & Backend Lead
 						</td>
 						<td className="py-2 text-neutral-600 dark:text-neutral-400">
-							2021 — 2023
+							2021 – 2023
 						</td>
 					</tr>
 					<tr>
@@ -175,7 +177,7 @@ export default function Page() {
 							Full Stack Developer
 						</td>
 						<td className="py-2 text-neutral-600 dark:text-neutral-400">
-							2020 — Present
+							2020 – Present
 						</td>
 					</tr>
 				</tbody>

@@ -4,9 +4,9 @@ publishedAt: "2026-04-13"
 summary: "I didn't pick Turborepo for the build caching. I picked it so I could put one package between every AI decision and the rest of the codebase. Here's how that package is structured and why each folder earns its place."
 ---
 
-In a [previous post](/blog/most-agents-dont-need-a-session) I wrote about building Zentrumcare's multi-agent pipeline — five agents that qualify, search, email clinics in parallel, and coordinate the match for families looking for pediatric therapy in Florida. I said the thing that made it possible to swap a Managed Agent session for a single `generateObject` call without rewriting the system was the package boundary underneath. This is that post.
+In a [previous post](/blog/most-agents-dont-need-a-session) I wrote about building Zentrumcare's multi-agent pipeline: five agents that qualify, search, email clinics in parallel, and coordinate the match for families looking for pediatric therapy in Florida. I said the thing that made it possible to swap a Managed Agent session for a single `generateObject` call without rewriting the system was the package boundary underneath. This is that post.
 
-Zentrumcare is a Turborepo monorepo. Most of the Turborepo value (build caching, task graphs, filtered pipelines) is real but unremarkable — you can read their docs. The interesting decision is what lives in `packages/ai` and what the rest of the codebase is forbidden from knowing.
+Zentrumcare is a Turborepo monorepo. Most of the Turborepo value (build caching, task graphs, filtered pipelines) is real but unremarkable: you can read their docs. The interesting decision is what lives in `packages/ai` and what the rest of the codebase is forbidden from knowing.
 
 I've spent a lot of time thinking about how to keep this layer ordered as the AI surface area in my repos keeps growing. One prompt becomes three. One helper becomes six tools. A classifier turns into a small workflow. After a few projects, I stopped treating this as "some LLM code" scattered through `apps/web` and started treating it as a system that needs its own boundary.
 
@@ -111,7 +111,7 @@ export async function qualify(input: LeadInput): Promise<QualificationResult> {
 }
 ```
 
-You can read this agent definition in twenty seconds. Model, prompt, tools, schema — each imported from the one place it lives. When a prompt regression shows up, I know exactly which file to open. When I want to reuse `verifyInsurance` in the provider-search agent, the import is one line.
+You can read this agent definition in twenty seconds. Model, prompt, tools, schema: each imported from the one place it lives. When a prompt regression shows up, I know exactly which file to open. When I want to reuse `verifyInsurance` in the provider-search agent, the import is one line.
 
 ## Why `lists/` is TypeScript, not JSON
 
@@ -169,15 +169,15 @@ export const PROMPT_REGISTRY = {
 
 A related rule I had to learn by failing at it: **default to one system prompt per mode.**
 
-The Outreach Agent has two modes. *Generation* drafts a personalized email to a clinic (Sonnet 4.5, quality matters — it's the clinic's first impression). *Classification* reads an inbound clinic reply and returns `confirmed | rejected | needs-info | no-response` (Haiku 4.5, speed matters).
+The Outreach Agent has two modes. *Generation* drafts a personalized email to a clinic (Sonnet 4.5, quality matters because it's the clinic's first impression). *Classification* reads an inbound clinic reply and returns `confirmed | rejected | needs-info | no-response` (Haiku 4.5, speed matters).
 
-My first version tried to handle both in one prompt with an `if task == "classify" ... else ...` instruction. Both modes degraded. The generation got more structured and less human; the classification got more verbose and sometimes wandered into free-form text. Splitting them into two prompts — `outreach-gen.ts` and `outreach-rx.ts` — each with its own model, its own eval, and its own file, fixed both simultaneously.
+My first version tried to handle both in one prompt with an `if task == "classify" ... else ...` instruction. Both modes degraded. The generation got more structured and less human; the classification got more verbose and sometimes wandered into free-form text. Splitting them into two prompts (`outreach-gen.ts` and `outreach-rx.ts`), each with its own model, its own eval, and its own file, fixed both simultaneously.
 
 If a single agent has two materially different behaviors, I now give it two prompts, two entries in the registry, and two eval sets. Conditional-behavior prompts can work, but in my experience they degrade faster than teams expect.
 
 ## Why `evaluation/` lives inside the AI package
 
-The golden set and the eval runner don't live in `apps/web/tests/` or `apps/trigger/tests/`. They live next to the agents they test. This isn't just organizational — it enforces a workflow.
+The golden set and the eval runner don't live in `apps/web/tests/` or `apps/trigger/tests/`. They live next to the agents they test. This isn't just organizational. It enforces a workflow.
 
 ```typescript
 // packages/ai/src/evaluation/runner.ts
@@ -207,7 +207,7 @@ export async function runQualifierEval() {
 
 The test suite runs `turbo run test --filter=@zentrumcare/ai` and asserts `accuracy >= 0.9` and `p95Latency <= 2000`. That's the CI gate. Because the AI package has no runtime dependencies on Trigger.dev or the database, this runs against real model calls in seconds, not minutes.
 
-The lesson I keep relearning: **for any high-value agent, write the golden set before you write the agent.** Twenty hand-crafted test cases force you to define exactly what "correct" means — which fields matter, which edge cases exist, what the model is allowed to get wrong. Every hour spent on that saves ten hours debugging surprising outputs later. I built most of Zentrumcare's agents before I built the evals. It's the decision I'd reverse.
+The lesson I keep relearning: **for any high-value agent, write the golden set before you write the agent.** Twenty hand-crafted test cases force you to define exactly what "correct" means: which fields matter, which edge cases exist, what the model is allowed to get wrong. Every hour spent on that saves ten hours debugging surprising outputs later. I built most of Zentrumcare's agents before I built the evals. It's the decision I'd reverse.
 
 ## The confidence math (with a caveat)
 
@@ -220,11 +220,11 @@ Here's a useful back-of-the-envelope intuition with one honest footnote. In a ch
 | 4 agents | 65.6% | 81.4% |
 | 5 agents | 59.0% | 77.4% |
 
-The caveat: agent errors aren't actually independent. An upstream misclassification biases the downstream agent toward compounding the same mistake, so in practice chain confidence degrades *faster* than the table suggests — not slower. This table is a sanity check, not a production reliability metric.
+The caveat: agent errors aren't actually independent. An upstream misclassification biases the downstream agent toward compounding the same mistake, so in practice chain confidence degrades *faster* than the table suggests, not slower. This table is a sanity check, not a production reliability metric.
 
 Either way, the implication is the same: escalation in a multi-agent system has to be more conservative than in a single-agent flow. For Zentrumcare this led to two concrete rules:
 
-1. **Verify inline at the earliest agent.** The qualifier and the verifier were originally two steps. I merged them the moment I realized a handoff between "scored" and "verified" created a point where invalid data could propagate silently into provider search. Now verification is a gate *inside* the qualifier — fail there, escalate there.
+1. **Verify inline at the earliest agent.** The qualifier and the verifier were originally two steps. I merged them the moment I realized a handoff between "scored" and "verified" created a point where invalid data could propagate silently into provider search. Now verification is a gate *inside* the qualifier: fail there, escalate there.
 2. **Hard stops, not soft fallbacks.** Zero clinics on the shortlist doesn't trigger a wider search. It halts the workflow and pages a human. The system knows what it doesn't know.
 
 ## Three things I'd do differently
@@ -237,7 +237,7 @@ Either way, the implication is the same: escalation in a multi-agent system has 
 
 ## What this structure is really doing
 
-Step back from the folder names for a second. The value isn't `agents/` vs `tools/` vs `prompts/`. The value is that every AI decision — which model, which prompt version, which tool set, which output shape — is contained inside one package with a small, typed public surface. The rest of the codebase (web app, Trigger.dev workers, eventually a Slack bot or a CLI if one shows up) consumes that surface and knows nothing else.
+Step back from the folder names for a second. The value isn't `agents/` vs `tools/` vs `prompts/`. The value is that every AI decision (which model, which prompt version, which tool set, which output shape) is contained inside one package with a small, typed public surface. The rest of the codebase (web app, Trigger.dev workers, eventually a Slack bot or a CLI if one shows up) consumes that surface and knows nothing else.
 
 When you need to swap a Managed Agent for a `generateObject` call, you change it inside `packages/ai` and the rest of the system doesn't move. When you need to roll back a prompt, you change it inside `packages/ai`. When you need to run a golden-set eval on every PR, it runs against `packages/ai` without booting the rest of the project.
 

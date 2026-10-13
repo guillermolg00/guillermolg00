@@ -1,7 +1,7 @@
 ---
 title: "translate-kit: from zero to a fully translated Next app in 1 min"
 publishedAt: "2026-02-27"
-summary: "How I built an AI-powered CLI that handles the entire i18n pipeline at build time — scanning, transforming, and translating your codebase automatically."
+summary: "How I built an AI-powered CLI that handles the entire i18n pipeline at build time: scanning, transforming, and translating your codebase automatically."
 ---
 
 If you've ever internationalized a Next.js app, you know the drill. You write your component:
@@ -13,7 +13,7 @@ If you've ever internationalized a Next.js app, you know the drill. You write yo
 
 Then you stop coding to do busywork: invent a key name, add it to a JSON file, replace the string with `t("hero.welcomeBack")`, repeat 200 times, then manually translate every JSON file into 5 languages. By the time you're done, you've forgotten what feature you were building.
 
-I got tired of this loop, so I built [translate-kit](https://translate-kit.com) — a CLI that handles the entire translation pipeline at build time using AI.
+I got tired of this loop, so I built [translate-kit](https://translate-kit.com), a CLI that handles the entire translation pipeline at build time using AI.
 
 ## What it does
 
@@ -23,7 +23,7 @@ translate-kit runs three steps, in order:
 scan → codegen → translate
 ```
 
-**Scan** parses your JSX/TSX with Babel and extracts every translatable string — text nodes, attributes like `placeholder` and `aria-label`, template literals, ternaries. It uses AI to generate semantic key names (`hero.welcomeBack` instead of `string_47`) and groups them by namespace automatically.
+**Scan** parses your JSX/TSX with Babel and extracts every translatable string: text nodes, attributes like `placeholder` and `aria-label`, template literals, ternaries. It uses AI to generate semantic key names (`hero.welcomeBack` instead of `string_47`) and groups them by namespace automatically.
 
 **Codegen** takes those keys and rewrites your source files. Two modes:
 
@@ -40,7 +40,7 @@ One command does it all:
 npx translate-kit run
 ```
 
-Or you can run each step independently. `translate` alone is the most common — you write your source messages by hand and let the tool handle the rest.
+Or you can run each step independently. `translate` alone is the most common: you write your source messages by hand and let the tool handle the rest.
 
 ## Why I built it
 
@@ -50,7 +50,7 @@ The longer answer has three parts:
 
 **JSON files are tedious.** Every time I changed copy in a component, I had to update the source JSON, then update (or re-translate) every target locale file. Multiply that by dozens of components and it becomes a real bottleneck.
 
-**Existing tools didn't fit.** Some solutions are runtime-heavy — they ship SDKs, add loading spinners, create flashes of untranslated content. Others are SaaS platforms with dashboards that require context-switching. I wanted something that runs in my terminal, at build time, and produces static JSON files that next-intl already knows how to read.
+**Existing tools didn't fit.** Some solutions are runtime-heavy: they ship SDKs, add loading spinners, create flashes of untranslated content. Others are SaaS platforms with dashboards that require context-switching. I wanted something that runs in my terminal, at build time, and produces static JSON files that next-intl already knows how to read.
 
 **AI models got good enough.** Models like GPT-4o-mini can translate UI strings with the right context and constraints for fractions of a cent. The quality is genuinely good when you give the model your app's context, a glossary, and the tone you want.
 
@@ -77,7 +77,7 @@ Before writing the transformed file, it re-parses the generated code to verify i
 
 ### Incremental by default
 
-The `.translate-lock.json` file stores a SHA-256 hash for every source value. When you re-run translate, it computes the diff: which keys are new, which changed, which were removed. Only new and modified keys get sent to the AI. This keeps costs predictable — a small copy change doesn't re-translate your entire app.
+The `.translate-lock.json` file stores a SHA-256 hash for every source value. When you re-run translate, it computes the diff: which keys are new, which changed, which were removed. Only new and modified keys get sent to the AI. This keeps costs predictable: a small copy change doesn't re-translate your entire app.
 
 ### Any AI provider
 
@@ -92,23 +92,23 @@ export default defineConfig({
 });
 ```
 
-Want to use Claude? Google? Mistral? Groq? Just swap the import. You control the cost and the quality. There's even a `fallbackModel` option — if your primary model fails (rate limits, outages), translate-kit retries with the fallback automatically.
+Want to use Claude? Google? Mistral? Groq? Just swap the import. You control the cost and the quality. There's even a `fallbackModel` option: if your primary model fails (rate limits, outages), translate-kit retries with the fallback automatically.
 
 ### Context matters
 
 Translations are only as good as the context you give the model. translate-kit lets you configure:
 
-- **App context**: "SaaS application for project management" — this changes how the model translates ambiguous terms
-- **Glossary**: `{ "Acme": "Acme", "workspace": "workspace" }` — terms that should never be translated
-- **Tone**: "professional", "casual", "friendly" — consistent voice across all locales
+- **App context**: "SaaS application for project management", which changes how the model translates ambiguous terms
+- **Glossary**: `{ "Acme": "Acme", "workspace": "workspace" }` for terms that should never be translated
+- **Tone**: "professional", "casual", "friendly" for a consistent voice across all locales
 
 The scanner also enriches strings with route path and section context before sending them to the AI, so a "Save" button in a settings page gets translated differently than a "Save" button in a document editor (in languages where that distinction matters).
 
 ## What I learned building it
 
-**AST transforms are fragile at the edges.** The happy path is straightforward — find a text node, wrap it. But real codebases have strings in `const` declarations, in array maps, in default props, in places where injecting a `t()` call requires restructuring the surrounding code. I chose to handle the vast majority of cases well and let users handle the rest manually.
+**AST transforms are fragile at the edges.** The happy path is straightforward: find a text node, wrap it. But real codebases have strings in `const` declarations, in array maps, in default props, in places where injecting a `t()` call requires restructuring the surrounding code. I chose to handle the vast majority of cases well and let users handle the rest manually.
 
-**AI structured output is a game changer.** All AI calls use `generateObject` with Zod schemas. The model doesn't return free-form text that I have to parse — it returns typed objects that match the exact shape I need. This eliminates an entire class of parsing bugs.
+**AI structured output is a game changer.** All AI calls use `generateObject` with Zod schemas. The model doesn't return free-form text that I have to parse. It returns typed objects that match the exact shape I need. This eliminates an entire class of parsing bugs.
 
 **Incremental everything.** The lock file was one of the first things I built, and it's probably the most important feature. Without it, every run would re-translate everything, costs would be unpredictable, and you'd lose any manual corrections you made to the AI output.
 
