@@ -1,0 +1,61 @@
+---
+title: "What clean architecture means when we code with agents"
+publishedAt: "2026-10-13"
+summary: "Agents now investigate bugs, change code, and run tests. That shifts what a good architecture should optimize for: making changes easy and producing enough evidence about their consequences."
+---
+
+The way we produce software is changing. Agents now take part in work we used to do ourselves: they investigate bugs, modify code, run tests, and propose fixes. That raises a question for me: should we also revisit what we consider a good architecture?
+
+Separation of concerns, clarity, and control over dependencies still matter. But I think we need to widen the criteria we use to evaluate a system. Its design also determines how much effort it takes a person or an agent to find a behavior, change it, and confirm it still works.
+
+**My proposal: a clean architecture is one that makes it easy to introduce changes and to get enough evidence about their consequences.**
+
+This idea has roots in modularity and maintainability. What changes is the context in which we try to achieve them.
+
+Someone who has worked on a project for years carries a lot of knowledge outside the code. They remember why an exception exists, which decision was discarded, and which integration tends to break. An agent has to rebuild that context from whatever information is available to it. The same happens to a new hire, but when agents are used all the time, that rebuilding happens over and over.
+
+So one of the key architectural questions becomes: where does the knowledge needed to change the software live?
+
+Good names and small functions help. So do clear contracts, executable examples, and documented decisions when the reasoning behind them isn't obvious. An important rule that only exists in someone's head is a dependency of the system, even if it doesn't show up in any diagram.
+
+**Clarity has to include the context needed to act correctly.**
+
+This also affects how we use abstractions. An abstraction can concentrate a decision and make many changes simpler. But it can also add so many layers that understanding a single operation means walking through a large part of the project.
+
+Imagine that changing a business rule requires reading an interface, an implementation, a factory, a registry, and several config files. Maybe that structure is justified. The question is what it gives you compared to the effort it takes to understand and verify it.
+
+The number of layers, or the absence of duplication, says little about that trade-off on its own. What we should measure is how much an abstraction helps with the work we actually do on the system.
+
+Another important shift is in execution. It's increasingly useful for the same behavior to run in different contexts: an HTTP request, a workflow, a scheduled job, or a tool called by an agent.
+
+For that kind of composition to work, we need to know more than what a function takes and what it returns. It also matters what it can modify, who is allowed to run it, how it can fail, and what happens if it runs twice.
+
+For example, an operation that sends a document has to keep its authorization rules and prevent unwanted sends no matter how it's invoked. The architecture should make those conditions visible and make it clear who enforces them.
+
+**Being able to run and verify a behavior is part of its design.**
+
+A function can be well organized and still be very hard to test because it needs a shared database, several external accounts, and a long manual setup. Every change then means recreating the same conditions.
+
+When an agent has to improvise a script to seed data and reproduce a case, it's worth asking whether that work could become a stable capability of the project.
+
+Reproducible scenarios, isolated data, and observable results cut down that setup. They let us spend more effort deciding whether the behavior is correct and less effort getting it to run at all.
+
+Which leads to another point: generating an implementation and proving it does what we need are two different jobs.
+
+If the same process writes the code and then adjusts the tests until they pass, it can end up confirming its own assumptions. We need to keep independent expectations: domain rules, acceptance criteria, and behaviors that must survive future changes.
+
+We also need to look beyond the task at hand. A solution can work today and make the next changes harder. Evaluating an architecture means watching how the system evolves across many changes, not just one.
+
+From this perspective, I'd judge a design with a few concrete questions:
+
+- How much context do you need to rebuild to change a behavior?
+- Can you run it under known, isolated conditions?
+- Are its effects and boundaries clear?
+- Can you verify what consequences the change had?
+- Does the solution make later work easier or harder?
+
+These questions apply to people and agents alike. Human review still needs explanations people can follow, and automation needs mechanisms it can run and check.
+
+This is a design hypothesis, and it should be tested: take different ways of organizing the same system, run them through a sequence of changes, and measure time, errors, setup, and how much intervention each one needed.
+
+For me, that's the evolution worth studying. A clean architecture should let us change software while preserving its intent and understanding the consequences, even when who writes the code changes.
