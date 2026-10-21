@@ -1,5 +1,5 @@
 # Guillermo Lopez Gomez
-Full Stack developer
+Senior Full Stack & AI Engineer
 
 ## Stack
 

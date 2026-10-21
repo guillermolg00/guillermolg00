@@ -10,7 +10,7 @@ export default function Page() {
 						Guillermo Lopez Gomez
 					</h1>
 					<p className="text-lg text-neutral-600 dark:text-neutral-400">
-						Full Stack Developer
+						Senior Full Stack & AI Engineer
 					</p>
 				</div>
 				<Image
@@ -23,12 +23,16 @@ export default function Page() {
 				/>
 			</div>
 			<p className="mb-8">
-				I'm the CTO at Vlue Logistics, where I lead the engineering team and
-				own the technical decisions behind the platform. I've built everything
-				from distributed systems with event-driven microservices to full stack
-				apps in Next.js and lean monoliths in Hono. The problem decides the
-				architecture, not the trend. Lately, most of my work is on AI agents
-				and the infrastructure that makes them reliable in production.
+				I build AI agents that survive production and backends that handle
+				80M requests a day. Former CTO at Vlue Logistics, now looking for the
+				next hard problem. Got one?{" "}
+				<a
+					href="mailto:guillermolopezg00@gmail.com"
+					className="font-medium underline decoration-neutral-400 dark:decoration-neutral-600 underline-offset-2"
+				>
+					Let's talk
+				</a>
+				.
 			</p>
 
 			<h2 className="mb-4 text-xl font-semibold tracking-tighter">Stack</h2>
@@ -145,12 +149,21 @@ export default function Page() {
 			<table className="mb-8 w-full text-sm">
 				<tbody>
 					<tr className="border-b border-neutral-200 dark:border-neutral-800">
+						<td className="py-2 pr-4 font-medium">Independent</td>
+						<td className="py-2 pr-4 text-neutral-600 dark:text-neutral-400">
+							Full Stack & AI Engineer
+						</td>
+						<td className="py-2 text-neutral-600 dark:text-neutral-400">
+							2022 – Present
+						</td>
+					</tr>
+					<tr className="border-b border-neutral-200 dark:border-neutral-800">
 						<td className="py-2 pr-4 font-medium">Vlue Logistics</td>
 						<td className="py-2 pr-4 text-neutral-600 dark:text-neutral-400">
 							Backend Lead → CTO
 						</td>
 						<td className="py-2 text-neutral-600 dark:text-neutral-400">
-							2023 – Present
+							2023 – 2026
 						</td>
 					</tr>
 					<tr className="border-b border-neutral-200 dark:border-neutral-800">
@@ -165,10 +178,10 @@ export default function Page() {
 					<tr className="border-b border-neutral-200 dark:border-neutral-800">
 						<td className="py-2 pr-4 font-medium">Contapp Digital</td>
 						<td className="py-2 pr-4 text-neutral-600 dark:text-neutral-400">
-							PM & Backend Lead
+							Backend Lead
 						</td>
 						<td className="py-2 text-neutral-600 dark:text-neutral-400">
-							2021 – 2023
+							2020 – 2022
 						</td>
 					</tr>
 					<tr>
@@ -177,7 +190,7 @@ export default function Page() {
 							Full Stack Developer
 						</td>
 						<td className="py-2 text-neutral-600 dark:text-neutral-400">
-							2020 – Present
+							2019 – 2020
 						</td>
 					</tr>
 				</tbody>

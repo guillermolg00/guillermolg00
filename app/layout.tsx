@@ -12,11 +12,11 @@ import { baseUrl } from "./sitemap";
 export const metadata: Metadata = {
 	metadataBase: new URL(baseUrl),
 	title: {
-		default: "Guillermo Lopez Gomez | CTO & Software Engineer",
+		default: "Guillermo Lopez Gomez | Senior Full Stack & AI Engineer",
 		template: "%s | Guillermo Lopez Gomez",
 	},
 	description:
-		"FullStack Software Engineer. I design distributed systems, lead engineering teams, and ship scalable backends on AWS.",
+		"Senior Full Stack & AI Engineer. I build distributed systems on AWS and production LLM systems: multi-agent platforms, RAG and MCP tooling.",
 	icons: {
 		icon: [
 			{ url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
@@ -25,9 +25,9 @@ export const metadata: Metadata = {
 		apple: "/apple-touch-icon.png",
 	},
 	openGraph: {
-		title: "Guillermo Lopez Gomez | CTO & Software Engineer",
+		title: "Guillermo Lopez Gomez | Senior Full Stack & AI Engineer",
 		description:
-			"FullStack Software Engineer. I design distributed systems, lead engineering teams, and ship scalable backends on AWS.",
+			"Senior Full Stack & AI Engineer. I build distributed systems on AWS and production LLM systems: multi-agent platforms, RAG and MCP tooling.",
 		url: baseUrl,
 		siteName: "Guillermo Lopez Gomez",
 		locale: "en_US",
@@ -42,9 +42,9 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Guillermo Lopez Gomez | FullStack Software Engineer",
+		title: "Guillermo Lopez Gomez | Senior Full Stack & AI Engineer",
 		description:
-			"FullStack Software Engineer. I design distributed systems, lead engineering teams, and ship scalable backends on AWS.",
+			"Senior Full Stack & AI Engineer. I build distributed systems on AWS and production LLM systems: multi-agent platforms, RAG and MCP tooling.",
 		images: ["/og-image.png"],
 	},
 	robots: {

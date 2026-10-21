@@ -10,7 +10,7 @@ export function GET(request: Request) {
 				<h2 tw="flex flex-col text-4xl font-bold tracking-tight text-center text-white">
 					{title}
 				</h2>
-				<p tw="text-xl text-gray-400 mt-4">FullStack Software Engineer</p>
+				<p tw="text-xl text-gray-400 mt-4">Senior Full Stack &amp; AI Engineer</p>
 			</div>
 		</div>,
 		{
