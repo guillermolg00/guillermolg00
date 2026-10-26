@@ -23,16 +23,16 @@ export default function Page() {
 				/>
 			</div>
 			<p className="mb-8">
-				I build AI agents that survive production and backends that handle
-				80M requests a day. Former CTO at Vlue Logistics, now looking for the
-				next hard problem. Got one?{" "}
-				<a
-					href="mailto:guillermolopezg00@gmail.com"
-					className="font-medium underline decoration-neutral-400 dark:decoration-neutral-600 underline-offset-2"
-				>
-					Let's talk
-				</a>
-				.
+				Senior full stack and AI engineer with 6+ years building distributed
+				systems in TypeScript/Node on AWS. Until October 2026 I was CTO at Vlue
+				Logistics: Led an engineering team responsible for a platform serving
+				over 100K users and handling nearly 100M requests per day. In the last two
+				years I&apos;ve shipped production LLM systems, including ZentrumCare (a
+				HIPAA-compliant multi-agent healthcare platform), a RAG engine for
+				engineering compliance, open-source MCP tooling and blobot, a desktop
+				app that runs Claude Code, Codex and Cursor as one team on a repo.
+				Maintainer of Morphicons (3K GitHub stars, 180K+ weekly npm downloads).
+				And an active contributor to open-source projects.
 			</p>
 
 			<h2 className="mb-4 text-xl font-semibold tracking-tighter">Stack</h2>
